@@ -1,4 +1,5 @@
-import java.util.*;
+import java.util.List;
+import java.util.LinkedList;
 
 public class MazeSolver implements IMazeSolver {
 	private static final int NORTH = 0, SOUTH = 1, EAST = 2, WEST = 3;
@@ -26,30 +27,23 @@ public class MazeSolver implements IMazeSolver {
 		private Room room;
 		private int roomRow;
 		private int roomCol;
-		private List<Room> path;
 		private int steps;
+		private LabelledRoom parent;
 
-		private LabelledRoom(Room room, int roomRow, int roomCol) {
+		// For pathSearch method
+		private LabelledRoom(Room room, int roomRow, int roomCol, LabelledRoom parent) {
 			this.room = room;
 			this.roomRow = roomRow;
 			this.roomCol = roomCol;
-			this.path = new ArrayList<>();
-			this.path.add(this.room);
+			this.parent = parent;
 		}
 
+		// For numReachable method
 		private LabelledRoom(Room room, int roomRow, int roomCol, int steps) {
 			this.room = room;
 			this.roomRow = roomRow;
 			this.roomCol = roomCol;
 			this.steps = steps;
-		}
-
-		private Room getRoom() {
-			return this.room;
-		}
-
-		private int[] getCoords() {
-			return new int[] { roomRow, roomCol };
 		}
 	}
 
@@ -76,10 +70,6 @@ public class MazeSolver implements IMazeSolver {
 			return this.queue.isEmpty();
 		}
 
-		private int getLength() {
-			return this.queue.size();
-		}
-
 		private LabelledRoom getFirst() {
 			return this.queue.getFirst();
 		}
@@ -100,6 +90,8 @@ public class MazeSolver implements IMazeSolver {
 		// TODO: Initialize the solver.
 		this.maze = maze;
 		this.visited = new boolean[this.maze.getRows()][this.maze.getColumns()];
+		this.isMemoised = false;
+		this.memoisedStart = null;
 	}
 
 	@Override
@@ -110,10 +102,20 @@ public class MazeSolver implements IMazeSolver {
 			throw new Exception("No maze initialized!");
 		}
 
-		if (startRow < 0 || startRow > this.maze.getRows() || startCol < 0 || startCol > this.maze.getColumns()) {
+		if (startRow < 0 || startRow >= this.maze.getRows() || startCol < 0 || startCol >= this.maze.getColumns()) {
 			throw new Exception("Invalid parameter(s)!");
-		} else if (endRow < 0 || endRow > this.maze.getRows() || endCol < 0 || endCol > this.maze.getColumns()) {
+		} else if (endRow < 0 || endRow >= this.maze.getRows() || endCol < 0 || endCol >= this.maze.getColumns()) {
 			throw new Exception("Invalid parameter(s)!");
+		}
+
+		// Clears visited array
+		this.visited = new boolean[this.visited.length][this.visited[0].length];
+
+		// Resets the onPath booleans
+		for (int i = 0; i < this.maze.getRows(); i++) {
+			for (int j = 0; j < this.maze.getColumns(); j++) {
+				this.maze.getRoom(i, j).onPath = false;
+			}
 		}
 
 		this.startRow = startRow;
@@ -122,9 +124,8 @@ public class MazeSolver implements IMazeSolver {
 		this.endCol = endCol;
 
 		this.currRoom = this.maze.getRoom(this.startRow, this.startCol);
-		this.currRoom.onPath = true;
 
-		this.currLRoom = new LabelledRoom(this.currRoom, this.startRow, this.startCol);
+		this.currLRoom = new LabelledRoom(this.currRoom, this.startRow, this.startCol, null);
 
 		if (this.queue == null) { this.queue = new Queue(); }
 		else { this.queue.flush(); }
@@ -135,79 +136,43 @@ public class MazeSolver implements IMazeSolver {
 		while(!this.queue.isEmpty()) {
 
 			this.currLRoom = this.queue.getFirst();
-			this.currRoom = this.currLRoom.getRoom(); // Traverse to the next Room
-			this.currRow =  this.currLRoom.getCoords()[0];
-			this.currCol =  this.currLRoom.getCoords()[1];
+			this.currRoom = this.currLRoom.room; // Traverse to the next Room
+			this.currRow =  this.currLRoom.roomRow;
+			this.currCol =  this.currLRoom.roomCol;
 
 
-			if (this.currLRoom.getCoords()[0] == this.endRow && this.currLRoom.getCoords()[1] == this.endCol) {
+			if (this.currLRoom.roomRow == this.endRow && this.currLRoom.roomCol == this.endCol) {
 				// Solved!
 
-				for (Room r : this.currLRoom.path) {
-					r.onPath = true;
+				int steps = 0;
+				LabelledRoom backtrack = this.currLRoom;
+
+				while (backtrack != null) {
+					backtrack.room.onPath = true;
+					steps++;
+					backtrack = backtrack.parent;
 				}
 
-				// Clears visited array
-				this.visited = new boolean[this.visited.length][this.visited[0].length];
-
-				return this.currLRoom.path.size();
+				return steps - 1;
 			}
 
 			// Naughty Elephant Squirt Water (NESW order)
 			// BFS to find the shortest route compared to DFS in Naive version
-			if (!this.currRoom.hasNorthWall()) {
-				int newRow = this.currRow + DELTAS[NORTH][0];
-				int newCol = this.currCol + DELTAS[NORTH][1];
+			for (int i = 0; i < 4; i++) {
+				int newRow = this.currRow + DELTAS[i][0];
+				int newCol = this.currCol + DELTAS[i][1];
 
-				if (!this.visited[newRow][newCol]) {
-					Room newRoom = this.maze.getRoom(newRow, newCol); // Next Room
-					LabelledRoom qMe = new LabelledRoom(newRoom, newRow, newCol);
+				boolean hasWall = false;
+				if (i == NORTH) hasWall = this.currRoom.hasNorthWall();
+				else if (i == SOUTH) hasWall = this.currRoom.hasSouthWall();
+				else if (i == EAST)  hasWall = this.currRoom.hasEastWall();
+				else if (i == WEST)  hasWall = this.currRoom.hasWestWall();
+
+				if (!hasWall && !this.visited[newRow][newCol]) {
+					Room newRoom = this.maze.getRoom(newRow, newCol);
+					LabelledRoom qMe = new LabelledRoom(newRoom, newRow, newCol, this.currLRoom);
 					this.visited[newRow][newCol] = true;
 					this.queue.enqueue(qMe); // Queues neighbouring room
-					List<Room> copied = new ArrayList<>(this.currLRoom.path); // Defensive copy
-					qMe.path.addAll(0, copied); // Prepends
-				}
-			}
-
-			if (!this.currRoom.hasEastWall()) {
-				int newRow = this.currRow + DELTAS[EAST][0];
-				int newCol = this.currCol + DELTAS[EAST][1];
-
-				if (!this.visited[newRow][newCol]) {
-					Room newRoom = this.maze.getRoom(newRow, newCol); // Next Room
-					LabelledRoom qMe = new LabelledRoom(newRoom, newRow, newCol);
-					this.visited[newRow][newCol] = true;
-					this.queue.enqueue(qMe); // Queues neighbouring room
-					List<Room> copied = new ArrayList<>(this.currLRoom.path); // Defensive copy
-					qMe.path.addAll(0, copied); // Prepends
-				}
-			}
-
-			if (!this.currRoom.hasSouthWall()) {
-				int newRow = this.currRow + DELTAS[SOUTH][0];
-				int newCol = this.currCol + DELTAS[SOUTH][1];
-
-				if (!this.visited[newRow][newCol]) {
-					Room newRoom = this.maze.getRoom(newRow, newCol); // Next Room
-					LabelledRoom qMe = new LabelledRoom(newRoom, newRow, newCol);
-					this.visited[newRow][newCol] = true;
-					this.queue.enqueue(qMe); // Queues neighbouring room
-					List<Room> copied = new ArrayList<>(this.currLRoom.path); // Defensive copy
-					qMe.path.addAll(0, copied); // Prepends
-				}
-			}
-
-			if (!this.currRoom.hasWestWall()) {
-				int newRow = this.currRow + DELTAS[WEST][0];
-				int newCol = this.currCol + DELTAS[WEST][1];
-
-				if (!this.visited[newRow][newCol]) {
-					Room newRoom = this.maze.getRoom(newRow, newCol); // Next Room
-					LabelledRoom qMe = new LabelledRoom(newRoom, newRow, newCol);
-					this.visited[newRow][newCol] = true;
-					this.queue.enqueue(qMe); // Queues neighbouring room
-					List<Room> copied = new ArrayList<>(this.currLRoom.path); // Defensive copy
-					qMe.path.addAll(0, copied); // Prepends
 				}
 			}
 
@@ -224,22 +189,19 @@ public class MazeSolver implements IMazeSolver {
 		if (this.maze == null) { throw new Exception("No maze initialized!"); }
 		if (k < 0) { throw new Exception("Invalid number of steps!"); }
 
-		if (k == 0) { return 1; } // Edge case
-		if (k >= (this.maze.getRows() * this.maze.getColumns())) { // Edge case
-			// Worst case is the maze is a one path only maze, meaning nth steps is needed,
-			// where n is number of Rooms, past this k value, all Rooms can be assuredly traversed
-			return this.maze.getRows() * this.maze.getColumns();
-		}
-
 		// Clear the memory for a new cycle of numReachable methods to be called
 		// Yup, I used MEMOISATION from CS1101S here, I thought it was a neat optimisation;
 		// A full BFS is needed only once instead of multiple partial BFSs of increasing depth
 		if (this.memoisedStart == null
-				|| !(this.memoisedStart[0] == this.startRow &&  this.memoisedStart[1] == this.startCol)) {
+				|| !(this.memoisedStart[0] == this.startRow && this.memoisedStart[1] == this.startCol)) {
 			isMemoised = false;
 		}
 
-		if (isMemoised) { return this.memory[k]; }
+		if (isMemoised) { return k < this.memory.length ? this.memory[k] : 0;  }
+
+		this.memory = new int[this.maze.getRows() * this.maze.getColumns()];
+		this.memory[0] += 1;
+		this.memoisedStart = new int[] { this.startRow, this.startCol };
 
 		if (this.queue == null) { this.queue = new Queue(); }
 		else { this.queue.flush(); }
@@ -252,68 +214,29 @@ public class MazeSolver implements IMazeSolver {
 		this.visited[this.startRow][this.startCol] = true;
 		this.queue.enqueue(this.currLRoom);
 
-		this.memory = new int[this.maze.getRows() * this.maze.getColumns()];
-		this.memory[0] += 1;
-		this.memoisedStart = new int[] {this.startRow, this.startCol};
-
 		while (!this.queue.isEmpty()) {
 
 			this.currLRoom = this.queue.getFirst();
-			this.currRoom = this.currLRoom.getRoom(); // Traverse to the next Room
-			this.currRow =  this.currLRoom.getCoords()[0];
-			this.currCol =  this.currLRoom.getCoords()[1];
+			this.currRoom = this.currLRoom.room; // Traverse to the next Room
+			this.currRow =  this.currLRoom.roomRow;
+			this.currCol =  this.currLRoom.roomCol;
 
 			// Naughty Elephant Squirt Water (NESW order)
 			// BFS to find the shortest route compared to DFS in Naive version
-			if (!this.currRoom.hasNorthWall()) {
-				int newRow = this.currRow + DELTAS[NORTH][0];
-				int newCol = this.currCol + DELTAS[NORTH][1];
 
-				if (!this.visited[newRow][newCol]) {
-					Room newRoom = this.maze.getRoom(newRow, newCol); // Next Room
-					LabelledRoom qMe = new LabelledRoom(newRoom, newRow, newCol, 0);
-					this.visited[newRow][newCol] = true;
-					this.queue.enqueue(qMe); // Queues neighbouring room
-					qMe.steps = this.currLRoom.steps + 1; // Counts for k
-					this.memory[qMe.steps] += 1; // Increment the count for k steps
-				}
-			}
+			for (int i = 0; i < 4; i++) {
+				int newRow = this.currRow + DELTAS[i][0];
+				int newCol = this.currCol + DELTAS[i][1];
 
-			if (!this.currRoom.hasEastWall()) {
-				int newRow = this.currRow + DELTAS[EAST][0];
-				int newCol = this.currCol + DELTAS[EAST][1];
+				boolean hasWall = false;
+				if (i == NORTH) hasWall = this.currRoom.hasNorthWall();
+				else if (i == SOUTH) hasWall = this.currRoom.hasSouthWall();
+				else if (i == EAST)  hasWall = this.currRoom.hasEastWall();
+				else if (i == WEST)  hasWall = this.currRoom.hasWestWall();
 
-				if (!this.visited[newRow][newCol]) {
-					Room newRoom = this.maze.getRoom(newRow, newCol); // Next Room
-					LabelledRoom qMe = new LabelledRoom(newRoom, newRow, newCol, 0);
-					this.visited[newRow][newCol] = true;
-					this.queue.enqueue(qMe); // Queues neighbouring room
-					qMe.steps = this.currLRoom.steps + 1; // Counts for k
-					this.memory[qMe.steps] += 1; // Increment the count for k steps
-				}
-			}
-
-			if (!this.currRoom.hasSouthWall()) {
-				int newRow = this.currRow + DELTAS[SOUTH][0];
-				int newCol = this.currCol + DELTAS[SOUTH][1];
-
-				if (!this.visited[newRow][newCol]) {
-					Room newRoom = this.maze.getRoom(newRow, newCol); // Next Room
-					LabelledRoom qMe = new LabelledRoom(newRoom, newRow, newCol, 0);
-					this.visited[newRow][newCol] = true;
-					this.queue.enqueue(qMe); // Queues neighbouring room
-					qMe.steps = this.currLRoom.steps + 1; // Counts for k
-					this.memory[qMe.steps] += 1; // Increment the count for k steps
-				}
-			}
-
-			if (!this.currRoom.hasWestWall()) {
-				int newRow = this.currRow + DELTAS[WEST][0];
-				int newCol = this.currCol + DELTAS[WEST][1];
-
-				if (!this.visited[newRow][newCol]) {
-					Room newRoom = this.maze.getRoom(newRow, newCol); // Next Room
-					LabelledRoom qMe = new LabelledRoom(newRoom, newRow, newCol, 0);
+				if (!hasWall && !this.visited[newRow][newCol]) {
+					Room newRoom = this.maze.getRoom(newRow, newCol);
+					LabelledRoom qMe = new LabelledRoom(newRoom, newRow, newCol, this.currLRoom);
 					this.visited[newRow][newCol] = true;
 					this.queue.enqueue(qMe); // Queues neighbouring room
 					qMe.steps = this.currLRoom.steps + 1; // Counts for k
@@ -326,19 +249,22 @@ public class MazeSolver implements IMazeSolver {
 
 		this.isMemoised = true;
 
-		return this.memory[k];
+		return k < this.memory.length ? this.memory[k] : 0;
 	}
 
 	public static void main(String[] args) {
 		// Do remember to remove any references to ImprovedMazePrinter before submitting
 		// your code!
+
 		try {
-			Maze maze = Maze.readMaze("maze-sample.txt");
+			//Maze maze = Maze.readMaze("maze-sample.txt");
+			Maze maze = MazeGenerator.generateMaze(50, 50, 0.9, System.currentTimeMillis());
 			IMazeSolver solver = new MazeSolver();
 			solver.initialize(maze);
 
-			System.out.println(solver.pathSearch(0, 0, 2, 3));
-			MazePrinter.printMaze(maze);
+			System.out.println(solver.pathSearch(0, 0, maze.getRows() - 1, maze.getColumns() - 1));
+			//MazePrinter.printMaze(maze);
+			ImprovedMazePrinter.printMaze(maze, 0, 0);
 
 			for (int i = 0; i <= 9; ++i) {
 				System.out.println("Steps " + i + " Rooms: " + solver.numReachable(i));
