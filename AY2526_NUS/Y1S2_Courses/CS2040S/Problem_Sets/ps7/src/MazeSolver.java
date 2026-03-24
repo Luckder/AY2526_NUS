@@ -4,10 +4,10 @@ import java.util.LinkedList;
 public class MazeSolver implements IMazeSolver {
 	private static final int NORTH = 0, SOUTH = 1, EAST = 2, WEST = 3;
 	private static int[][] DELTAS = new int[][] {
-		{ -1, 0 }, // North
-		{ 1, 0 }, // South
-		{ 0, 1 }, // East
-		{ 0, -1 } // West
+			{ -1, 0 }, // North
+			{ 1, 0 }, // South
+			{ 0, 1 }, // East
+			{ 0, -1 } // West
 	};
 
 	private boolean[][] visited;

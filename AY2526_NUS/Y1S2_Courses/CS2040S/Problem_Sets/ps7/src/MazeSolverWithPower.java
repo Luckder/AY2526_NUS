@@ -4,10 +4,10 @@ import java.util.LinkedList;
 public class MazeSolverWithPower implements IMazeSolverWithPower {
 	private static final int NORTH = 0, SOUTH = 1, EAST = 2, WEST = 3;
 	private static int[][] DELTAS = new int[][] {
-		{ -1, 0 }, // North
-		{ 1, 0 }, // South
-		{ 0, 1 }, // East
-		{ 0, -1 } // West
+			{ -1, 0 }, // North
+			{ 1, 0 }, // South
+			{ 0, 1 }, // East
+			{ 0, -1 } // West
 	};
 
 	private boolean[][][] visited;
@@ -112,8 +112,8 @@ public class MazeSolverWithPower implements IMazeSolverWithPower {
 		// A full BFS is needed only once instead of multiple partial BFSs of increasing depth
 		if (this.memoisedStart == null
 				|| !(this.memoisedStart[0] == this.startRow
-					&& this.memoisedStart[1] == this.startCol
-					&& this.memoisedStart[2] == this.power)) {
+				&& this.memoisedStart[1] == this.startCol
+				&& this.memoisedStart[2] == this.power)) {
 			isMemoised = false;
 		}
 

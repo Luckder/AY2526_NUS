@@ -21,12 +21,12 @@ public interface IMazeSolver {
 
 	/**
 	 * Returns the number of rooms that require a minimum of exactly k steps to
-     * reach it, from the starting coordinate as defined in the most recent
-     * call to pathSearch.
+	 * reach it, from the starting coordinate as defined in the most recent
+	 * call to pathSearch.
 	 *
 	 * @param k the number of steps
 	 * @return the number of rooms such that the minimum number of steps
-     *         required to reach it is k
+	 *         required to reach it is k
 	 * @throws Exception
 	 */
 	Integer numReachable(int k) throws Exception;

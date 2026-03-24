@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Maze {
-    private final static char WALL = '#';
+	private final static char WALL = '#';
 
 	private int rows, columns; // size of the maze
 	private Room[][] rooms;
